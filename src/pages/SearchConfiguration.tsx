@@ -1,19 +1,73 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, X, Database, Calendar, Filter } from "lucide-react";
-import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Search, Plus, X, Database, Calendar, Filter, Mail, Key, Play, Loader2, CheckCircle } from "lucide-react";
+import { APIConnectionTest } from "@/components/APIConnectionTest";
+import { useRevPrismaAPI } from "@/hooks/useRevPrismaAPI";
+import { SearchRequest } from "@/services/api";
 
 const SearchConfiguration = () => {
+  const { searchArticles, loading, currentProject, searchResults, error } = useRevPrismaAPI();
+  
+  const [config, setConfig] = useState({
+    projectName: "",
+    databases: [] as string[],
+    queries: {
+      pubmed: "",
+      scopus: "",
+      wos: ""
+    },
+    dateStart: "",
+    dateEnd: "",
+    email: "",
+    apiKeys: {
+      pubmed: "",
+      scopus: "",
+      wos: ""
+    },
+    filtersLanguage: [] as string[],
+    filtersPubTypes: [] as string[]
+  });
+
   const [includeKeywords, setIncludeKeywords] = useState<string[]>(["machine learning", "education", "AI"]);
   const [excludeKeywords, setExcludeKeywords] = useState<string[]>(["animal study", "veterinary"]);
   const [newIncludeKeyword, setNewIncludeKeyword] = useState("");
   const [newExcludeKeyword, setNewExcludeKeyword] = useState("");
+
+  const handleDatabaseChange = (database: string, checked: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      databases: checked 
+        ? [...prev.databases, database]
+        : prev.databases.filter(db => db !== database)
+    }));
+  };
+
+  const handleLanguageChange = (language: string, checked: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      filtersLanguage: checked
+        ? [...prev.filtersLanguage, language]
+        : prev.filtersLanguage.filter(lang => lang !== language)
+    }));
+  };
+
+  const handlePubTypeChange = (pubType: string, checked: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      filtersPubTypes: checked
+        ? [...prev.filtersPubTypes, pubType]
+        : prev.filtersPubTypes.filter(type => type !== pubType)
+    }));
+  };
 
   const addIncludeKeyword = () => {
     if (newIncludeKeyword.trim()) {
@@ -37,64 +91,347 @@ const SearchConfiguration = () => {
     setExcludeKeywords(excludeKeywords.filter((_, i) => i !== index));
   };
 
+  const handleExecuteSearch = async () => {
+    if (!config.projectName || config.databases.length === 0) {
+      return;
+    }
+
+    const searchRequest: SearchRequest = {
+      project_name: config.projectName,
+      databases: config.databases,
+      queries: Object.fromEntries(
+        config.databases.map(db => [db, config.queries[db as keyof typeof config.queries]])
+      ),
+      date_start: config.dateStart || undefined,
+      date_end: config.dateEnd || undefined,
+      filters_language: config.filtersLanguage,
+      filters_pub_types_exclude: config.filtersPubTypes,
+      email: config.email || undefined,
+      api_keys: Object.fromEntries(
+        Object.entries(config.apiKeys).filter(([_, value]) => value.trim() !== "")
+      )
+    };
+
+    await searchArticles(searchRequest);
+  };
+
+  const canExecuteSearch = config.projectName && config.databases.length > 0 && 
+                          config.databases.some(db => config.queries[db as keyof typeof config.queries]);
+
   return (
     <div className="min-h-screen bg-gradient-subtle p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-scientific-navy">Configuração de Busca</h1>
           <p className="text-muted-foreground mt-1">
-            Configure os parâmetros para sua revisão sistemática
+            Configure os parâmetros para sua revisão sistemática e execute a busca automática
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Main Configuration */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Search Strategy */}
-            <Card className="p-6 bg-gradient-subtle border-border/50">
-              <div className="flex items-center mb-4">
-                <Search className="w-5 h-5 text-primary mr-2" />
-                <h3 className="text-lg font-semibold">Estratégia de Busca</h3>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="research-question">Pergunta de Pesquisa</Label>
-                  <Textarea 
-                    id="research-question"
-                    placeholder="Descreva sua pergunta de pesquisa..."
-                    className="mt-1"
-                  />
-                </div>
-                
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="start-date">Data Início</Label>
-                    <Input type="date" id="start-date" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="end-date">Data Fim</Label>
-                    <Input type="date" id="end-date" className="mt-1" />
-                  </div>
-                </div>
-              </div>
-            </Card>
+        {/* API Connection Test */}
+        <APIConnectionTest />
 
+        {/* Search Results Alert */}
+        {searchResults && (
+          <Alert>
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Busca concluída!</strong> Encontrados {searchResults.total_records} artigos.
+              Projeto ID: {searchResults.project_id}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid lg:grid-cols-4 gap-6">
+          {/* Main Configuration */}
+          <div className="lg:col-span-3 space-y-6">
+            <Tabs defaultValue="project" className="w-full">
+              <TabsList className="grid grid-cols-4 w-full">
+                <TabsTrigger value="project">Projeto</TabsTrigger>
+                <TabsTrigger value="databases">Bases</TabsTrigger>
+                <TabsTrigger value="queries">Queries</TabsTrigger>
+                <TabsTrigger value="filters">Filtros</TabsTrigger>
+              </TabsList>
+
+              {/* Project Configuration */}
+              <TabsContent value="project" className="space-y-6">
+                <Card className="bg-gradient-subtle border-border/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Search className="h-5 w-5" />
+                      Informações do Projeto
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="project-name">Nome do Projeto *</Label>
+                      <Input
+                        id="project-name"
+                        placeholder="Ex: Revisão IA em Educação"
+                        value={config.projectName}
+                        onChange={(e) => setConfig(prev => ({ ...prev, projectName: e.target.value }))}
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="start-date">Data Início</Label>
+                        <Input 
+                          type="date" 
+                          id="start-date"
+                          value={config.dateStart}
+                          onChange={(e) => setConfig(prev => ({ ...prev, dateStart: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="end-date">Data Fim</Label>
+                        <Input 
+                          type="date" 
+                          id="end-date"
+                          value={config.dateEnd}
+                          onChange={(e) => setConfig(prev => ({ ...prev, dateEnd: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="email" className="flex items-center gap-2">
+                        <Mail className="h-4 w-4" />
+                        E-mail (obrigatório para PubMed) *
+                      </Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={config.email}
+                        onChange={(e) => setConfig(prev => ({ ...prev, email: e.target.value }))}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Database Selection */}
+              <TabsContent value="databases" className="space-y-6">
+                <Card className="bg-gradient-subtle border-border/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5" />
+                      Seleção de Bases de Dados
+                    </CardTitle>
+                    <CardDescription>
+                      Escolha as bases de dados para busca automática
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="pubmed" 
+                            checked={config.databases.includes("pubmed")}
+                            onCheckedChange={(checked) => handleDatabaseChange("pubmed", checked as boolean)}
+                          />
+                          <Label htmlFor="pubmed">PubMed (Gratuito)</Label>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm flex items-center gap-1">
+                            <Key className="h-3 w-3" />
+                            API Key (opcional)
+                          </Label>
+                          <Input
+                            placeholder="PubMed API Key"
+                            value={config.apiKeys.pubmed}
+                            onChange={(e) => setConfig(prev => ({
+                              ...prev,
+                              apiKeys: { ...prev.apiKeys, pubmed: e.target.value }
+                            }))}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="scopus"
+                            checked={config.databases.includes("scopus")}
+                            onCheckedChange={(checked) => handleDatabaseChange("scopus", checked as boolean)}
+                          />
+                          <Label htmlFor="scopus">Scopus</Label>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm flex items-center gap-1">
+                            <Key className="h-3 w-3" />
+                            API Key (obrigatória)
+                          </Label>
+                          <Input
+                            placeholder="Scopus API Key"
+                            value={config.apiKeys.scopus}
+                            onChange={(e) => setConfig(prev => ({
+                              ...prev,
+                              apiKeys: { ...prev.apiKeys, scopus: e.target.value }
+                            }))}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="wos"
+                            checked={config.databases.includes("wos")}
+                            onCheckedChange={(checked) => handleDatabaseChange("wos", checked as boolean)}
+                          />
+                          <Label htmlFor="wos">Web of Science</Label>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm flex items-center gap-1">
+                            <Key className="h-3 w-3" />
+                            API Key (obrigatória)
+                          </Label>
+                          <Input
+                            placeholder="WoS API Key"
+                            value={config.apiKeys.wos}
+                            onChange={(e) => setConfig(prev => ({
+                              ...prev,
+                              apiKeys: { ...prev.apiKeys, wos: e.target.value }
+                            }))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Query Configuration */}
+              <TabsContent value="queries" className="space-y-6">
+                <Card className="bg-gradient-subtle border-border/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Search className="h-5 w-5" />
+                      Queries de Busca
+                    </CardTitle>
+                    <CardDescription>
+                      Configure as queries específicas para cada base de dados
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {config.databases.includes("pubmed") && (
+                      <div>
+                        <Label htmlFor="pubmed-query">Query PubMed</Label>
+                        <Textarea
+                          id="pubmed-query"
+                          placeholder='("artificial intelligence"[Title/Abstract]) AND education[Title/Abstract]'
+                          value={config.queries.pubmed}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            queries: { ...prev.queries, pubmed: e.target.value }
+                          }))}
+                        />
+                      </div>
+                    )}
+
+                    {config.databases.includes("scopus") && (
+                      <div>
+                        <Label htmlFor="scopus-query">Query Scopus</Label>
+                        <Textarea
+                          id="scopus-query"
+                          placeholder='TITLE-ABS-KEY("artificial intelligence" AND education)'
+                          value={config.queries.scopus}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            queries: { ...prev.queries, scopus: e.target.value }
+                          }))}
+                        />
+                      </div>
+                    )}
+
+                    {config.databases.includes("wos") && (
+                      <div>
+                        <Label htmlFor="wos-query">Query Web of Science</Label>
+                        <Textarea
+                          id="wos-query"
+                          placeholder='TS=("artificial intelligence" AND education)'
+                          value={config.queries.wos}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            queries: { ...prev.queries, wos: e.target.value }
+                          }))}
+                        />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Filters */}
+              <TabsContent value="filters" className="space-y-6">
+                <Card className="bg-gradient-subtle border-border/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Filter className="h-5 w-5" />
+                      Filtros e Critérios
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Languages */}
+                    <div>
+                      <Label className="mb-3 block">Idiomas</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {["English", "Portuguese", "Spanish", "French"].map((lang) => (
+                          <div key={lang} className="flex items-center space-x-2">
+                            <Checkbox 
+                              id={`lang-${lang}`}
+                              checked={config.filtersLanguage.includes(lang)}
+                              onCheckedChange={(checked) => handleLanguageChange(lang, checked as boolean)}
+                            />
+                            <Label htmlFor={`lang-${lang}`} className="text-sm">{lang}</Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Publication Types to Exclude */}
+                    <div>
+                      <Label className="mb-3 block">Tipos de Publicação (Excluir)</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {["Comment", "Editorial", "Letter", "Review"].map((type) => (
+                          <div key={type} className="flex items-center space-x-2">
+                            <Checkbox 
+                              id={`pubtype-${type}`}
+                              checked={config.filtersPubTypes.includes(type)}
+                              onCheckedChange={(checked) => handlePubTypeChange(type, checked as boolean)}
+                            />
+                            <Label htmlFor={`pubtype-${type}`} className="text-sm">{type}</Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
             {/* Keywords Configuration */}
-            <Card className="p-6 bg-gradient-subtle border-border/50">
-              <div className="flex items-center mb-4">
-                <Filter className="w-5 h-5 text-primary mr-2" />
-                <h3 className="text-lg font-semibold">Palavras-chave</h3>
-              </div>
-              
-              <div className="space-y-6">
+            <Card className="bg-gradient-subtle border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Filter className="h-5 w-5" />
+                  Palavras-chave
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 {/* Include Keywords */}
                 <div>
-                  <Label className="text-accent font-medium">Palavras de Inclusão</Label>
-                  <div className="flex gap-2 mt-2">
+                  <Label className="text-accent font-medium mb-2 block">Inclusão</Label>
+                  <div className="flex gap-2">
                     <Input
-                      placeholder="Adicionar palavra-chave..."
+                      placeholder="Adicionar..."
                       value={newIncludeKeyword}
                       onChange={(e) => setNewIncludeKeyword(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addIncludeKeyword()}
@@ -103,14 +440,14 @@ const SearchConfiguration = () => {
                       <Plus className="w-4 h-4" />
                     </Button>
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-3">
+                  <div className="flex flex-wrap gap-1 mt-2">
                     {includeKeywords.map((keyword, index) => (
-                      <Badge key={index} variant="secondary" className="bg-accent/10 text-accent">
+                      <Badge key={index} variant="secondary" className="bg-accent/10 text-accent text-xs">
                         {keyword}
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-auto p-0 ml-2"
+                          className="h-auto p-0 ml-1"
                           onClick={() => removeIncludeKeyword(index)}
                         >
                           <X className="w-3 h-3" />
@@ -122,10 +459,10 @@ const SearchConfiguration = () => {
 
                 {/* Exclude Keywords */}
                 <div>
-                  <Label className="text-destructive font-medium">Palavras de Exclusão</Label>
-                  <div className="flex gap-2 mt-2">
+                  <Label className="text-destructive font-medium mb-2 block">Exclusão</Label>
+                  <div className="flex gap-2">
                     <Input
-                      placeholder="Adicionar palavra de exclusão..."
+                      placeholder="Adicionar..."
                       value={newExcludeKeyword}
                       onChange={(e) => setNewExcludeKeyword(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addExcludeKeyword()}
@@ -134,14 +471,14 @@ const SearchConfiguration = () => {
                       <Plus className="w-4 h-4" />
                     </Button>
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-3">
+                  <div className="flex flex-wrap gap-1 mt-2">
                     {excludeKeywords.map((keyword, index) => (
-                      <Badge key={index} variant="secondary" className="bg-destructive/10 text-destructive">
+                      <Badge key={index} variant="secondary" className="bg-destructive/10 text-destructive text-xs">
                         {keyword}
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-auto p-0 ml-2"
+                          className="h-auto p-0 ml-1"
                           onClick={() => removeExcludeKeyword(index)}
                         >
                           <X className="w-3 h-3" />
@@ -150,94 +487,43 @@ const SearchConfiguration = () => {
                     ))}
                   </div>
                 </div>
-
-                {/* Logic Configuration */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Lógica de Inclusão</Label>
-                    <Select defaultValue="any">
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="any">Qualquer palavra (OR)</SelectItem>
-                        <SelectItem value="all">Todas as palavras (AND)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Lógica de Exclusão</Label>
-                    <Select defaultValue="any">
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="any">Qualquer palavra (OR)</SelectItem>
-                        <SelectItem value="all">Todas as palavras (AND)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Database Selection */}
-            <Card className="p-6 bg-gradient-subtle border-border/50">
-              <div className="flex items-center mb-4">
-                <Database className="w-5 h-5 text-primary mr-2" />
-                <h3 className="text-lg font-semibold">Bases de Dados</h3>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="pubmed" defaultChecked />
-                  <Label htmlFor="pubmed">PubMed</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="scopus" defaultChecked />
-                  <Label htmlFor="scopus">Scopus</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="wos" defaultChecked />
-                  <Label htmlFor="wos">Web of Science</Label>
-                </div>
-              </div>
-            </Card>
-
-            {/* Screening Mode */}
-            <Card className="p-6 bg-gradient-subtle border-border/50">
-              <h3 className="text-lg font-semibold mb-4">Modo de Triagem</h3>
-              
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="simple" defaultChecked />
-                  <Label htmlFor="simple">Triagem Simples</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="ml" />
-                  <Label htmlFor="ml">Triagem ML Avançada</Label>
-                </div>
-              </div>
-              
-              <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  A triagem ML requer arquivo de labels para treinamento do modelo.
-                </p>
-              </div>
+              </CardContent>
             </Card>
 
             {/* Action Buttons */}
             <div className="space-y-3">
-              <Button className="w-full bg-gradient-primary">
-                <Search className="w-4 h-4 mr-2" />
-                Iniciar Busca
+              <Button 
+                className="w-full bg-gradient-primary"
+                onClick={handleExecuteSearch}
+                disabled={!canExecuteSearch || loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Executando Busca...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Executar Busca
+                  </>
+                )}
               </Button>
-              <Button variant="outline" className="w-full border-primary text-primary">
-                Salvar Configuração
-              </Button>
+              
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription className="text-sm">
+                    {error}
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
+                <p className="font-medium mb-1">Status:</p>
+                <p>✓ Projeto: {config.projectName ? "✅" : "⚠️"}</p>
+                <p>✓ Bases: {config.databases.length > 0 ? "✅" : "⚠️"}</p>
+                <p>✓ Email: {config.email ? "✅" : "⚠️"}</p>
+              </div>
             </div>
           </div>
         </div>

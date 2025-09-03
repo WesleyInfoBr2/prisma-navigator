@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  revprisma-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - WOS_API_KEY=${WOS_API_KEY:-}
+      - SCOPUS_API_KEY=${SCOPUS_API_KEY:-}
+    volumes:
+      - ./outputs:/app/outputs
+      - ./temp:/tmp/sysrev_outputs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
