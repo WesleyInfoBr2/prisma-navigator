@@ -1,0 +1,18 @@
+identified_databases: null
+identified_registers: 0
+removed_duplicates: null
+removed_automatic: 0
+removed_other: 0
+records_screened: null
+records_excluded: null
+reports_sought: null
+reports_not_retrieved: 0
+reports_assessed: null
+reports_excluded_reasons:
+  Not RCT: 0
+  Wrong population: 0
+  Wrong outcome: 0
+  Not peer-reviewed: 0
+  Other: 0
+studies_included: null
+studies_included_meta: 0

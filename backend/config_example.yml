@@ -1,0 +1,22 @@
+project_name: "Exemplo Revisão IA em Educação"
+databases: ["pubmed", "scopus", "wos"]
+queries:
+  pubmed: '(("artificial intelligence"[Title/Abstract]) AND education[Title/Abstract]) AND (2019:2025[dp])'
+  scopus: 'TITLE-ABS-KEY("artificial intelligence" AND education) AND PUBYEAR > 2018'
+  wos: 'TS=("artificial intelligence" AND education) AND PY=(2019-2025)'
+date_range:
+  start: "2019-01-01"
+  end: "2025-08-31"
+filters:
+  language: ["English", "Portuguese", "Spanish"]
+  pub_types_exclude: ["Comment", "Editorial", "Letter"]
+screening:
+  include_keywords: ["education", "school", "student", "learning"]
+  exclude_keywords: ["animal study", "veterinary"]
+  include_logic: "any"
+  exclude_logic: "any"
+deduplication:
+  fuzzy_threshold: 95
+export:
+  excel: true
+  excel_filename: "sysrev_export.xlsx"
