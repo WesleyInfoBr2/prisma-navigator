@@ -1,4 +1,5 @@
 import MetricCard from "@/components/MetricCard";
+import { APIConnectionTest } from "@/components/APIConnectionTest";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -74,6 +75,9 @@ const Dashboard = () => {
             </Button>
           </div>
         </div>
+
+        {/* API Connection Test */}
+        <APIConnectionTest />
 
         {/* Metrics Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
