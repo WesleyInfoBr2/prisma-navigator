@@ -86,7 +86,7 @@ export function APIConnectionTest({ className }: APIConnectionTestProps) {
               <strong>Erro de conexão:</strong> {error}
               <br />
               <span className="text-sm">
-                Certifique-se de que a API está rodando em http://localhost:8000
+                Verifique se a API está funcionando: https://prisma-navigator.onrender.com
               </span>
             </AlertDescription>
           </Alert>
@@ -104,9 +104,9 @@ export function APIConnectionTest({ className }: APIConnectionTestProps) {
         )}
 
         <div className="text-xs text-muted-foreground space-y-1">
-          <div>• URL da API: http://localhost:8000</div>
-          <div>• Documentação: http://localhost:8000/docs</div>
-          <div>• Para iniciar a API: <code className="bg-muted px-1 rounded">cd backend && ./start.sh</code></div>
+          <div>• URL da API: https://prisma-navigator.onrender.com</div>
+          <div>• Documentação: https://prisma-navigator.onrender.com/docs</div>
+          <div>• Health Check: https://prisma-navigator.onrender.com/health</div>
         </div>
       </CardContent>
     </Card>

@@ -56,6 +56,7 @@ export const useRevPrismaAPI = () => {
   ): Promise<T | null> => {
     try {
       setLoading(true);
+      console.log('Fazendo chamada para API:', 'https://prisma-navigator.onrender.com');
       const result = await apiCall();
       
       if (onSuccess) {
@@ -73,9 +74,14 @@ export const useRevPrismaAPI = () => {
       
       return result;
     } catch (error) {
-      const errorMessage = error instanceof APIError 
-        ? error.message 
-        : 'Erro inesperado na comunicação com a API';
+      console.error('Erro na API:', error);
+      let errorMessage = 'Erro inesperado na comunicação com a API';
+      
+      if (error instanceof APIError) {
+        errorMessage = error.message;
+      } else if (error instanceof TypeError && error.message.includes('fetch')) {
+        errorMessage = 'API não está respondendo. Verifique se o deployment no Render.com foi concluído com sucesso.';
+      }
       
       setError(errorMessage);
       
