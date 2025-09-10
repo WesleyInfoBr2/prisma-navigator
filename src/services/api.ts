@@ -1,6 +1,6 @@
 // RevPRISMA API Client
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'https://prisma-navigator.onrender.com/api';
 
 export interface SearchRequest {
   project_name: string;
