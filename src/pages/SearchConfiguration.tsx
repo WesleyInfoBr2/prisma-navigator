@@ -96,6 +96,21 @@ const SearchConfiguration = () => {
       return;
     }
 
+    // Validate email for PubMed
+    if (config.databases.includes("pubmed") && (!config.email || !config.email.includes("@"))) {
+      alert("Email válido é obrigatório para buscar no PubMed");
+      return;
+    }
+
+    // Validate queries
+    for (const db of config.databases) {
+      const query = config.queries[db as keyof typeof config.queries];
+      if (!query || !query.trim()) {
+        alert(`Query para ${db} é obrigatória`);
+        return;
+      }
+    }
+
     const searchRequest: SearchRequest = {
       project_name: config.projectName,
       databases: config.databases,
@@ -323,13 +338,16 @@ const SearchConfiguration = () => {
                         <Label htmlFor="pubmed-query">Query PubMed</Label>
                         <Textarea
                           id="pubmed-query"
-                          placeholder='("artificial intelligence"[Title/Abstract]) AND education[Title/Abstract]'
+                          placeholder='artificial intelligence AND retail[Title/Abstract]'
                           value={config.queries.pubmed}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
                             queries: { ...prev.queries, pubmed: e.target.value }
                           }))}
                         />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Exemplo: artificial intelligence AND retail[Title/Abstract]
+                        </p>
                       </div>
                     )}
 

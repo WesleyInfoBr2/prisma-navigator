@@ -99,54 +99,84 @@ class Config:
         )
 
 def search_pubmed(query: str, date_start: Optional[str], date_end: Optional[str], email: str, api_key: Optional[str]=None, retmax: int=10000) -> List[Dict[str, Any]]:
-    Entrez.email = email
-    if api_key: Entrez.api_key = api_key
-    params = {"db":"pubmed","term":query,"retmode":"json","retmax":retmax}
-    if date_start or date_end:
-        params.update({"datetype":"pdat"})
-        if date_start: params["mindate"] = date_start[:10]
-        if date_end: params["maxdate"] = date_end[:10]
-    handle = Entrez.esearch(**params); result = Entrez.read(handle); handle.close()
-    ids = result.get("IdList", []); recs = []
-    if not ids: return recs
-    B = 200
-    for i in range(0, len(ids), B):
-        chunk = ids[i:i+B]
-        fetch = Entrez.efetch(db="pubmed", id=",".join(chunk), rettype="medline", retmode="xml")
-        data = Entrez.read(fetch); fetch.close()
-        for art in data.get("PubmedArticle", []):
+    try:
+        # Validate email format
+        if not email or "@" not in email:
+            raise ValueError("Email válido é obrigatório para buscar no PubMed")
+        
+        Entrez.email = email
+        if api_key: Entrez.api_key = api_key
+        
+        # Clean and validate query
+        query = query.strip()
+        if not query:
+            raise ValueError("Query não pode estar vazia")
+            
+        params = {"db":"pubmed","term":query,"retmode":"json","retmax":retmax}
+        if date_start or date_end:
+            params.update({"datetype":"pdat"})
+            if date_start: params["mindate"] = date_start[:10]
+            if date_end: params["maxdate"] = date_end[:10]
+            
+        # Search for article IDs
+        try:
+            handle = Entrez.esearch(**params)
+            result = Entrez.read(handle)
+            handle.close()
+        except Exception as e:
+            raise ValueError(f"Erro na busca PubMed: {str(e)}")
+            
+        ids = result.get("IdList", [])
+        recs = []
+        if not ids: 
+            return recs
+            
+        # Fetch articles in batches
+        B = 200
+        for i in range(0, len(ids), B):
+            chunk = ids[i:i+B]
             try:
-                artset = art["MedlineCitation"]; pmid = artset.get("PMID",""); article = artset.get("Article", {})
-                title = article.get("ArticleTitle","")
-                abstract = ""
-                if "Abstract" in article and "AbstractText" in article["Abstract"]:
-                    abstract = " ".join([str(x) for x in article["Abstract"]["AbstractText"]])
-                journal = article.get("Journal", {}).get("Title", "")
-                year = None
+                fetch = Entrez.efetch(db="pubmed", id=",".join(chunk), rettype="medline", retmode="xml")
+                data = Entrez.read(fetch)
+                fetch.close()
+            except Exception as e:
+                print(f"Erro ao buscar artigos PubMed (batch {i//B + 1}): {str(e)}")
+                continue
+            for art in data.get("PubmedArticle", []):
                 try:
-                    dp = artset.get("DateCompleted") or artset.get("DateCreated") or {}
-                    y = dp.get("Year"); year = int(y) if y else None
-                except Exception: pass
-                authors = []
-                for a in article.get("AuthorList", []):
-                    name = " ".join([a.get("ForeName",""), a.get("LastName","")]).strip()
-                    if name: authors.append(name)
-                authors_str = "; ".join(authors) if authors else ""
-                doi = ""
-                if "PubmedData" in art and "ArticleIdList" in art["PubmedData"]:
-                    for aid in art["PubmedData"]["ArticleIdList"]:
-                        if aid.attributes.get("IdType","").lower()=="doi":
-                            doi = str(aid)
-                pub_types = [str(x) for x in safe_list(article.get("PublicationTypeList", []))]
-                lang = ""
-                langs = article.get("Language", [])
-                if isinstance(langs, list) and langs: lang = str(langs[0])
-                rec = {"source":"pubmed","title":str(title),"abstract":str(abstract),"authors":authors_str,"journal":str(journal),
-                       "year":year,"language":lang,"pub_types":"; ".join(pub_types) if pub_types else "",
-                       "doi":doi.strip(),"pmid":str(pmid),"eid":"","wos_uid":"","query":query,"retrieved_at":now_iso()}
-                rec["record_id"] = make_record_id(rec); recs.append(rec)
-            except Exception: continue
-    return recs
+                    artset = art["MedlineCitation"]; pmid = artset.get("PMID",""); article = artset.get("Article", {})
+                    title = article.get("ArticleTitle","")
+                    abstract = ""
+                    if "Abstract" in article and "AbstractText" in article["Abstract"]:
+                        abstract = " ".join([str(x) for x in article["Abstract"]["AbstractText"]])
+                    journal = article.get("Journal", {}).get("Title", "")
+                    year = None
+                    try:
+                        dp = artset.get("DateCompleted") or artset.get("DateCreated") or {}
+                        y = dp.get("Year"); year = int(y) if y else None
+                    except Exception: pass
+                    authors = []
+                    for a in article.get("AuthorList", []):
+                        name = " ".join([a.get("ForeName",""), a.get("LastName","")]).strip()
+                        if name: authors.append(name)
+                    authors_str = "; ".join(authors) if authors else ""
+                    doi = ""
+                    if "PubmedData" in art and "ArticleIdList" in art["PubmedData"]:
+                        for aid in art["PubmedData"]["ArticleIdList"]:
+                            if aid.attributes.get("IdType","").lower()=="doi":
+                                doi = str(aid)
+                    pub_types = [str(x) for x in safe_list(article.get("PublicationTypeList", []))]
+                    lang = ""
+                    langs = article.get("Language", [])
+                    if isinstance(langs, list) and langs: lang = str(langs[0])
+                    rec = {"source":"pubmed","title":str(title),"abstract":str(abstract),"authors":authors_str,"journal":str(journal),
+                           "year":year,"language":lang,"pub_types":"; ".join(pub_types) if pub_types else "",
+                           "doi":doi.strip(),"pmid":str(pmid),"eid":"","wos_uid":"","query":query,"retrieved_at":now_iso()}
+                    rec["record_id"] = make_record_id(rec); recs.append(rec)
+                except Exception: continue
+        return recs
+    except Exception as e:
+        raise ValueError(f"Erro na busca PubMed: {str(e)}")
 
 def search_scopus(query: str) -> List[Dict[str, Any]]:
     if not HAVE_SCOPUS: return []
