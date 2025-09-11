@@ -14,9 +14,9 @@ import json
 
 # Import existing sysrev_tool functions
 from sysrev_tool import (
-    Config, search_pubmed, search_scopus, search_wos, 
-    deduplicate_records, screen_records_simple, screen_records_ml,
-    calculate_metrics, create_prisma_diagram, save_excel, ensure_dir
+    Config, search_pubmed, search_scopus, search_wos,
+    df_standardize, deduplicate, screen_simple, screen_ml,
+    compute_metrics, save_prisma_complete, save_excel, ensure_dir
 )
 
 app = FastAPI(
