@@ -83,7 +83,12 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 export const revPrismaAPI = {
   // Health check
   async healthCheck() {
-    return apiRequest<{ status: string; version: string }>('/health');
+    const url = 'https://prisma-navigator-production.up.railway.app/health';
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new APIError(response.status, `HTTP ${response.status}`);
+    }
+    return response.json();
   },
 
   // Search articles
