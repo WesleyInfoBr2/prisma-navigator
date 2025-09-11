@@ -86,7 +86,7 @@ export function APIConnectionTest({ className }: APIConnectionTestProps) {
               <strong>Erro de conexão:</strong> {error}
               <br />
               <span className="text-sm">
-                Verifique se a API está funcionando: https://prisma-navigator.onrender.com
+                Verifique se a API está funcionando: https://prisma-navigator-production.up.railway.app
               </span>
             </AlertDescription>
           </Alert>
@@ -104,9 +104,9 @@ export function APIConnectionTest({ className }: APIConnectionTestProps) {
         )}
 
         <div className="text-xs text-muted-foreground space-y-1">
-          <div>• URL da API: https://prisma-navigator.onrender.com</div>
-          <div>• Documentação: https://prisma-navigator.onrender.com/docs</div>
-          <div>• Health Check: https://prisma-navigator.onrender.com/health</div>
+          <div>• URL da API: https://prisma-navigator-production.up.railway.app</div>
+          <div>• Documentação: https://prisma-navigator-production.up.railway.app/docs</div>
+          <div>• Health Check: https://prisma-navigator-production.up.railway.app/health</div>
         </div>
       </CardContent>
     </Card>

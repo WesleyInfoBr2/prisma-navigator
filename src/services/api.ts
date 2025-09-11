@@ -1,6 +1,6 @@
 // RevPRISMA API Client
 
-const API_BASE_URL = 'https://prisma-navigator.onrender.com/api';
+const API_BASE_URL = 'https://prisma-navigator-production.up.railway.app/api';
 
 export interface SearchRequest {
   project_name: string;

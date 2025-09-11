@@ -56,7 +56,7 @@ export const useRevPrismaAPI = () => {
   ): Promise<T | null> => {
     try {
       setLoading(true);
-      console.log('Fazendo chamada para API:', 'https://prisma-navigator.onrender.com');
+      console.log('Fazendo chamada para API:', 'https://prisma-navigator-production.up.railway.app');
       const result = await apiCall();
       
       if (onSuccess) {
@@ -80,7 +80,7 @@ export const useRevPrismaAPI = () => {
       if (error instanceof APIError) {
         errorMessage = error.message;
       } else if (error instanceof TypeError && error.message.includes('fetch')) {
-        errorMessage = 'API não está respondendo. Verifique se o deployment no Render.com foi concluído com sucesso.';
+        errorMessage = 'API não está respondendo. Verifique se o deployment no Railway foi concluído com sucesso.';
       }
       
       setError(errorMessage);
