@@ -14,7 +14,7 @@ import json
 
 # Import existing sysrev_tool functions
 from sysrev_tool import (
-    Config, search_pubmed, search_scopus, search_wos,
+    Config, search_pubmed, search_scopus, search_wos, search_openalex, search_crossref,
     df_standardize, deduplicate, screen_simple, screen_ml,
     compute_metrics, save_prisma_complete, save_excel, ensure_dir
 )
@@ -112,12 +112,29 @@ async def search_articles(request: SearchRequest):
                     api_key
                 )
             
+            elif db == "openalex" and "openalex" in request.queries:
+                records = search_openalex(
+                    request.queries["openalex"],
+                    request.date_start,
+                    request.date_end
+                )
+            
+            elif db == "crossref" and "crossref" in request.queries:
+                records = search_crossref(
+                    request.queries["crossref"],
+                    request.date_start,
+                    request.date_end
+                )
+            
             elif db == "scopus" and "scopus" in request.queries:
-                records = search_scopus(request.queries["scopus"])
+                api_key = request.api_keys.get("scopus") or os.getenv("SCOPUS_API_KEY")
+                if api_key:
+                    records = search_scopus(request.queries["scopus"])
             
             elif db == "wos" and "wos" in request.queries:
-                api_key = request.api_keys.get("wos")
-                records = search_wos(request.queries["wos"], api_key=api_key)
+                api_key = request.api_keys.get("wos") or os.getenv("WOS_API_KEY")
+                if api_key:
+                    records = search_wos(request.queries["wos"], api_key=api_key)
             
             results_by_database[db] = len(records)
             all_records.extend(records)

@@ -11,7 +11,6 @@ export interface SearchRequest {
   filters_language?: string[];
   filters_pub_types_exclude?: string[];
   email?: string;
-  api_keys?: Record<string, string>;
 }
 
 export interface SearchResponse {

@@ -231,6 +231,201 @@ def search_wos(query: str, base_url: Optional[str]=None, api_key: Optional[str]=
     except Exception:
         return []
 
+def search_openalex(query: str, date_start: Optional[str]=None, date_end: Optional[str]=None, limit: int=1000) -> List[Dict[str, Any]]:
+    """Search OpenAlex API for academic papers"""
+    try:
+        base_url = "https://api.openalex.org/works"
+        params = {
+            "search": query,
+            "per-page": min(200, limit),
+            "mailto": "sysrev@example.com"  # Required by OpenAlex
+        }
+        
+        # Add date filters if provided
+        if date_start or date_end:
+            date_filter = []
+            if date_start:
+                date_filter.append(f"from_publication_date:{date_start[:10]}")
+            if date_end:
+                date_filter.append(f"to_publication_date:{date_end[:10]}")
+            params["filter"] = ",".join(date_filter)
+        
+        recs = []
+        page = 1
+        
+        while len(recs) < limit:
+            params["page"] = page
+            resp = requests.get(base_url, params=params, timeout=30)
+            
+            if resp.status_code != 200:
+                break
+                
+            data = resp.json()
+            results = data.get("results", [])
+            
+            if not results:
+                break
+                
+            for work in results:
+                try:
+                    title = work.get("title", "")
+                    abstract = ""
+                    if work.get("abstract_inverted_index"):
+                        # Reconstruct abstract from inverted index
+                        inv_index = work["abstract_inverted_index"]
+                        words = [""] * max([max(positions) for positions in inv_index.values()], default=-1) + 1
+                        for word, positions in inv_index.items():
+                            for pos in positions:
+                                if pos < len(words):
+                                    words[pos] = word
+                        abstract = " ".join(words).strip()
+                    
+                    # Extract authors
+                    authors = []
+                    for author in work.get("authorships", []):
+                        if author.get("author", {}).get("display_name"):
+                            authors.append(author["author"]["display_name"])
+                    authors_str = "; ".join(authors)
+                    
+                    # Extract journal
+                    journal = ""
+                    if work.get("primary_location", {}).get("source", {}).get("display_name"):
+                        journal = work["primary_location"]["source"]["display_name"]
+                    
+                    # Extract year
+                    year = None
+                    if work.get("publication_year"):
+                        year = int(work["publication_year"])
+                    
+                    # Extract DOI
+                    doi = work.get("doi", "").replace("https://doi.org/", "")
+                    
+                    rec = {
+                        "source": "openalex",
+                        "title": str(title),
+                        "abstract": str(abstract),
+                        "authors": authors_str,
+                        "journal": str(journal),
+                        "year": year,
+                        "language": "",
+                        "pub_types": "",
+                        "doi": doi,
+                        "pmid": "",
+                        "eid": "",
+                        "wos_uid": "",
+                        "query": query,
+                        "retrieved_at": now_iso()
+                    }
+                    rec["record_id"] = make_record_id(rec)
+                    recs.append(rec)
+                    
+                    if len(recs) >= limit:
+                        break
+                        
+                except Exception as e:
+                    continue
+                    
+            page += 1
+            if page > 5:  # Limit to 5 pages max
+                break
+                
+        return recs
+        
+    except Exception as e:
+        print(f"Erro na busca OpenAlex: {str(e)}")
+        return []
+
+def search_crossref(query: str, date_start: Optional[str]=None, date_end: Optional[str]=None, limit: int=1000) -> List[Dict[str, Any]]:
+    """Search Crossref API for academic papers"""
+    try:
+        base_url = "https://api.crossref.org/works"
+        params = {
+            "query": query,
+            "rows": min(1000, limit),
+            "mailto": "sysrev@example.com"  # Polite pool
+        }
+        
+        # Add date filters if provided
+        if date_start:
+            params["filter"] = f"from-pub-date:{date_start[:10]}"
+        if date_end:
+            if "filter" in params:
+                params["filter"] += f",until-pub-date:{date_end[:10]}"
+            else:
+                params["filter"] = f"until-pub-date:{date_end[:10]}"
+        
+        resp = requests.get(base_url, params=params, timeout=30)
+        
+        if resp.status_code != 200:
+            return []
+            
+        data = resp.json()
+        items = data.get("message", {}).get("items", [])
+        
+        recs = []
+        for item in items:
+            try:
+                title = ""
+                if item.get("title"):
+                    title = item["title"][0] if isinstance(item["title"], list) else str(item["title"])
+                
+                abstract = ""
+                if item.get("abstract"):
+                    abstract = str(item["abstract"])
+                
+                # Extract authors
+                authors = []
+                for author in item.get("author", []):
+                    given = author.get("given", "")
+                    family = author.get("family", "")
+                    name = f"{given} {family}".strip()
+                    if name:
+                        authors.append(name)
+                authors_str = "; ".join(authors)
+                
+                # Extract journal
+                journal = ""
+                if item.get("container-title"):
+                    journal = item["container-title"][0] if isinstance(item["container-title"], list) else str(item["container-title"])
+                
+                # Extract year
+                year = None
+                if item.get("published-print", {}).get("date-parts"):
+                    year = item["published-print"]["date-parts"][0][0]
+                elif item.get("published-online", {}).get("date-parts"):
+                    year = item["published-online"]["date-parts"][0][0]
+                
+                # Extract DOI
+                doi = item.get("DOI", "")
+                
+                rec = {
+                    "source": "crossref",
+                    "title": str(title),
+                    "abstract": str(abstract),
+                    "authors": authors_str,
+                    "journal": str(journal),
+                    "year": year,
+                    "language": "",
+                    "pub_types": item.get("type", ""),
+                    "doi": doi,
+                    "pmid": "",
+                    "eid": "",
+                    "wos_uid": "",
+                    "query": query,
+                    "retrieved_at": now_iso()
+                }
+                rec["record_id"] = make_record_id(rec)
+                recs.append(rec)
+                
+            except Exception as e:
+                continue
+                
+        return recs
+        
+    except Exception as e:
+        print(f"Erro na busca Crossref: {str(e)}")
+        return []
+
 def df_standardize(df: pd.DataFrame) -> pd.DataFrame:
     cols = ["record_id","source","title","abstract","authors","journal","year","language","pub_types","doi","pmid","eid","wos_uid","query","retrieved_at"]
     for c in cols:

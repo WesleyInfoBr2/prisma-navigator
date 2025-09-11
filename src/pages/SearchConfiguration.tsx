@@ -19,20 +19,17 @@ const SearchConfiguration = () => {
   
   const [config, setConfig] = useState({
     projectName: "",
-    databases: [] as string[],
+    databases: ["pubmed"] as string[], // PubMed ativado por padrão
     queries: {
-      pubmed: "",
+      pubmed: "artificial intelligence[Title/Abstract] AND education[Title/Abstract]",
+      openalex: "",
+      crossref: "",
       scopus: "",
       wos: ""
     },
     dateStart: "",
     dateEnd: "",
     email: "",
-    apiKeys: {
-      pubmed: "",
-      scopus: "",
-      wos: ""
-    },
     filtersLanguage: [] as string[],
     filtersPubTypes: [] as string[]
   });
@@ -121,10 +118,7 @@ const SearchConfiguration = () => {
       date_end: config.dateEnd || undefined,
       filters_language: config.filtersLanguage,
       filters_pub_types_exclude: config.filtersPubTypes,
-      email: config.email || undefined,
-      api_keys: Object.fromEntries(
-        Object.entries(config.apiKeys).filter(([_, value]) => value.trim() !== "")
-      )
+      email: config.email || undefined
     };
 
     await searchArticles(searchRequest);
@@ -229,93 +223,129 @@ const SearchConfiguration = () => {
 
               {/* Database Selection */}
               <TabsContent value="databases" className="space-y-6">
+                {/* Open Access Sources */}
                 <Card className="bg-gradient-subtle border-border/50">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Database className="h-5 w-5" />
-                      Seleção de Bases de Dados
+                      <Database className="h-5 w-5 text-green-600" />
+                      Fontes Abertas (Gratuitas)
                     </CardTitle>
                     <CardDescription>
-                      Escolha as bases de dados para busca automática
+                      Bases de dados científicas com acesso livre e gratuito
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
                         <div className="flex items-center space-x-2">
                           <Checkbox 
                             id="pubmed" 
                             checked={config.databases.includes("pubmed")}
                             onCheckedChange={(checked) => handleDatabaseChange("pubmed", checked as boolean)}
                           />
-                          <Label htmlFor="pubmed">PubMed (Gratuito)</Label>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm flex items-center gap-1">
-                            <Key className="h-3 w-3" />
-                            API Key (opcional)
+                          <Label htmlFor="pubmed" className="flex items-center gap-2">
+                            PubMed/MEDLINE
+                            <Badge variant="secondary" className="text-xs">Medicina</Badge>
                           </Label>
-                          <Input
-                            placeholder="PubMed API Key"
-                            value={config.apiKeys.pubmed}
-                            onChange={(e) => setConfig(prev => ({
-                              ...prev,
-                              apiKeys: { ...prev.apiKeys, pubmed: e.target.value }
-                            }))}
-                          />
                         </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                          Base principal de literatura médica e biomédica
+                        </p>
                       </div>
 
-                      <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="openalex"
+                            checked={config.databases.includes("openalex")}
+                            onCheckedChange={(checked) => handleDatabaseChange("openalex", checked as boolean)}
+                          />
+                          <Label htmlFor="openalex" className="flex items-center gap-2">
+                            OpenAlex
+                            <Badge variant="secondary" className="text-xs">Multidisciplinar</Badge>
+                          </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                          Base ampla com 200M+ artigos de todas as áreas
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="crossref"
+                            checked={config.databases.includes("crossref")}
+                            onCheckedChange={(checked) => handleDatabaseChange("crossref", checked as boolean)}
+                          />
+                          <Label htmlFor="crossref" className="flex items-center gap-2">
+                            Crossref
+                            <Badge variant="secondary" className="text-xs">DOIs</Badge>
+                          </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                          Registro oficial de DOIs e metadados de publicações
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Premium Sources */}
+                <Card className="bg-gradient-subtle border-border/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5 text-amber-600" />
+                      Bases Comerciais (Requer API Key)
+                    </CardTitle>
+                    <CardDescription>
+                      Bases de dados premium que requerem chaves de API pagas
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
                         <div className="flex items-center space-x-2">
                           <Checkbox 
                             id="scopus"
                             checked={config.databases.includes("scopus")}
                             onCheckedChange={(checked) => handleDatabaseChange("scopus", checked as boolean)}
                           />
-                          <Label htmlFor="scopus">Scopus</Label>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm flex items-center gap-1">
-                            <Key className="h-3 w-3" />
-                            API Key (obrigatória)
+                          <Label htmlFor="scopus" className="flex items-center gap-2">
+                            Scopus (Elsevier)
+                            <Badge variant="outline" className="text-xs">API Key</Badge>
                           </Label>
-                          <Input
-                            placeholder="Scopus API Key"
-                            value={config.apiKeys.scopus}
-                            onChange={(e) => setConfig(prev => ({
-                              ...prev,
-                              apiKeys: { ...prev.apiKeys, scopus: e.target.value }
-                            }))}
-                          />
                         </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                          Base multidisciplinar com métricas de citação
+                        </p>
                       </div>
 
-                      <div className="space-y-4">
+                      <div className="space-y-2">
                         <div className="flex items-center space-x-2">
                           <Checkbox 
                             id="wos"
                             checked={config.databases.includes("wos")}
                             onCheckedChange={(checked) => handleDatabaseChange("wos", checked as boolean)}
                           />
-                          <Label htmlFor="wos">Web of Science</Label>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm flex items-center gap-1">
-                            <Key className="h-3 w-3" />
-                            API Key (obrigatória)
+                          <Label htmlFor="wos" className="flex items-center gap-2">
+                            Web of Science
+                            <Badge variant="outline" className="text-xs">API Key</Badge>
                           </Label>
-                          <Input
-                            placeholder="WoS API Key"
-                            value={config.apiKeys.wos}
-                            onChange={(e) => setConfig(prev => ({
-                              ...prev,
-                              apiKeys: { ...prev.apiKeys, wos: e.target.value }
-                            }))}
-                          />
                         </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                          Base premium com índice de citações e fator de impacto
+                        </p>
                       </div>
                     </div>
+
+                    {(config.databases.includes("scopus") || config.databases.includes("wos")) && (
+                      <Alert>
+                        <Key className="h-4 w-4" />
+                        <AlertDescription>
+                          <strong>Configuração necessária:</strong> As chaves de API para Scopus e Web of Science devem ser configuradas nas variáveis de ambiente do servidor.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -335,10 +365,10 @@ const SearchConfiguration = () => {
                   <CardContent className="space-y-6">
                     {config.databases.includes("pubmed") && (
                       <div>
-                        <Label htmlFor="pubmed-query">Query PubMed</Label>
+                        <Label htmlFor="pubmed-query">Query PubMed/MEDLINE</Label>
                         <Textarea
                           id="pubmed-query"
-                          placeholder='artificial intelligence AND retail[Title/Abstract]'
+                          placeholder='artificial intelligence[Title/Abstract] AND education[Title/Abstract]'
                           value={config.queries.pubmed}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
@@ -346,7 +376,43 @@ const SearchConfiguration = () => {
                           }))}
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          Exemplo: artificial intelligence AND retail[Title/Abstract]
+                          Exemplo simples: artificial intelligence[Title/Abstract] AND education[Title/Abstract]
+                        </p>
+                      </div>
+                    )}
+
+                    {config.databases.includes("openalex") && (
+                      <div>
+                        <Label htmlFor="openalex-query">Query OpenAlex</Label>
+                        <Textarea
+                          id="openalex-query"
+                          placeholder='artificial intelligence AND education'
+                          value={config.queries.openalex}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            queries: { ...prev.queries, openalex: e.target.value }
+                          }))}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Busca em texto livre. Exemplo: artificial intelligence AND education
+                        </p>
+                      </div>
+                    )}
+
+                    {config.databases.includes("crossref") && (
+                      <div>
+                        <Label htmlFor="crossref-query">Query Crossref</Label>
+                        <Textarea
+                          id="crossref-query"
+                          placeholder='artificial intelligence education'
+                          value={config.queries.crossref}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            queries: { ...prev.queries, crossref: e.target.value }
+                          }))}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Busca simples em texto. Exemplo: artificial intelligence education
                         </p>
                       </div>
                     )}
@@ -363,6 +429,9 @@ const SearchConfiguration = () => {
                             queries: { ...prev.queries, scopus: e.target.value }
                           }))}
                         />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Sintaxe Scopus. Exemplo: TITLE-ABS-KEY("artificial intelligence" AND education)  
+                        </p>
                       </div>
                     )}
 
@@ -378,6 +447,9 @@ const SearchConfiguration = () => {
                             queries: { ...prev.queries, wos: e.target.value }
                           }))}
                         />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Sintaxe WoS. Exemplo: TS=("artificial intelligence" AND education)
+                        </p>
                       </div>
                     )}
                   </CardContent>
