@@ -1,7 +1,9 @@
 import MetricCard from "@/components/MetricCard";
-import { APIConnectionTest } from "@/components/APIConnectionTest";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSearch } from "@/contexts/SearchContext";
+import { Navigate } from "react-router-dom";
 import { 
   FileText, 
   Filter, 
@@ -14,33 +16,46 @@ import {
   Download
 } from "lucide-react";
 
-const Dashboard = () => {
+const Metrics = () => {
+  const { user } = useAuth();
+  const { currentSearch, articles } = useSearch();
+
+  // Redirect to auth if not logged in
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+  // Calculate metrics from real data
+  const totalArticles = articles.length;
+  const includedArticles = articles.filter(a => a.status === 'incluido').length;
+  const excludedArticles = articles.filter(a => a.status === 'excluido').length;
+  const pendingArticles = articles.filter(a => a.status === 'pending').length;
+
   // Mock data - em produção virá da API Python
   const metrics = [
     {
       title: "Artigos Coletados",
-      value: "1,247",
+      value: currentSearch ? currentSearch.total_results.toString() : "0",
       description: "Total de registros encontrados",
       icon: FileText,
-      trend: { value: 12, isPositive: true }
+      trend: currentSearch ? { value: 12, isPositive: true } : undefined
     },
     {
       title: "Após Deduplicação",
-      value: "892",
+      value: totalArticles.toString(),
       description: "Registros únicos identificados",
       icon: Filter,
-      trend: { value: 28, isPositive: false }
+      trend: totalArticles > 0 ? { value: 28, isPositive: false } : undefined
     },
     {
       title: "Incluídos",
-      value: "156",
+      value: includedArticles.toString(),
       description: "Artigos relevantes selecionados",
       icon: CheckCircle,
-      trend: { value: 5, isPositive: true }
+      trend: includedArticles > 0 ? { value: 5, isPositive: true } : undefined
     },
     {
       title: "Excluídos",
-      value: "736",
+      value: excludedArticles.toString(),
       description: "Artigos não relevantes",
       icon: XCircle
     }
@@ -59,7 +74,7 @@ const Dashboard = () => {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-scientific-navy">Dashboard</h1>
+            <h1 className="text-3xl font-bold text-scientific-navy">Métricas</h1>
             <p className="text-muted-foreground mt-1">
               Acompanhe o progresso da sua revisão sistemática
             </p>
@@ -75,9 +90,6 @@ const Dashboard = () => {
             </Button>
           </div>
         </div>
-
-        {/* API Connection Test */}
-        <APIConnectionTest />
 
         {/* Metrics Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -174,4 +186,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default Metrics;

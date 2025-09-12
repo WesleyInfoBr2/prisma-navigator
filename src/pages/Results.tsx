@@ -4,6 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSearch } from "@/contexts/SearchContext";
+import { Navigate } from "react-router-dom";
 import { 
   Download, 
   Search, 
@@ -19,64 +22,48 @@ import { useState } from "react";
 const Results = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
+  const { user } = useAuth();
+  const { currentSearch, articles } = useSearch();
 
-  // Mock data - em produção virá da API Python
-  const articles = [
-    {
-      id: "1",
-      title: "Machine Learning Applications in Educational Assessment: A Systematic Review",
-      authors: "Smith, J.; Johnson, A.; Brown, K.",
-      journal: "Computers & Education",
-      year: "2023",
-      doi: "10.1016/j.compedu.2023.001",
-      status: "incluido",
-      score: 0.92,
-      abstract: "This study examines the current state of machine learning applications in educational assessment..."
-    },
-    {
-      id: "2", 
-      title: "AI-Powered Personalized Learning Systems: Current Trends and Future Directions",
-      authors: "Davis, M.; Wilson, L.; Garcia, R.",
-      journal: "Educational Technology Research",
-      year: "2023",
-      doi: "10.1080/etr.2023.002",
-      status: "incluido",
-      score: 0.88,
-      abstract: "The integration of artificial intelligence in personalized learning systems has shown promising results..."
-    },
-    {
-      id: "3",
-      title: "Traditional Teaching Methods vs Digital Approaches in Animal Science Education",
-      authors: "Thompson, P.; Anderson, S.",
-      journal: "Veterinary Education Journal", 
-      year: "2022",
-      doi: "10.1007/vej.2022.003",
-      status: "excluido",
-      score: 0.23,
-      abstract: "This study compares traditional and digital teaching methods in veterinary education settings..."
-    },
-    {
-      id: "4",
-      title: "Deep Learning for Automated Essay Scoring in Higher Education",
-      authors: "Liu, X.; Chen, Y.; Rodriguez, M.",
-      journal: "Journal of Educational Computing Research",
-      year: "2023", 
-      doi: "10.1177/jecr.2023.004",
-      status: "incluido",
-      score: 0.95,
-      abstract: "We present a novel deep learning approach for automated essay scoring that outperforms traditional methods..."
-    }
-  ];
+  // Redirect to auth if not logged in
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  // No search results message
+  if (!currentSearch || articles.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-center items-center min-h-[60vh]">
+            <Card className="p-8 bg-gradient-subtle border-border/50 text-center max-w-md">
+              <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Nenhum resultado encontrado</h2>
+              <p className="text-muted-foreground mb-4">
+                Realize uma busca primeiro para ver os resultados aqui.
+              </p>
+              <Button asChild className="bg-gradient-primary">
+                <a href="/search">Fazer Nova Busca</a>
+              </Button>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const getStatusBadge = (status: string) => {
     if (status === "incluido") {
       return <Badge className="bg-accent/10 text-accent border-accent/20">Incluído</Badge>;
-    } else {
+    } else if (status === "excluido") {
       return <Badge variant="secondary" className="bg-destructive/10 text-destructive border-destructive/20">Excluído</Badge>;
+    } else {
+      return <Badge variant="outline">Pendente</Badge>;
     }
   };
 
-  const getScoreColor = (score: number) => {
+  const getScoreColor = (score: number | null) => {
+    if (!score) return "text-muted-foreground";
     if (score >= 0.8) return "text-accent";
     if (score >= 0.5) return "text-primary";
     return "text-destructive";
@@ -84,7 +71,7 @@ const Results = () => {
 
   const filteredArticles = articles.filter(article => {
     const matchesSearch = article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          article.authors.toLowerCase().includes(searchTerm.toLowerCase());
+                          (article.authors && article.authors.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === "todos" || article.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -97,7 +84,7 @@ const Results = () => {
           <div>
             <h1 className="text-3xl font-bold text-scientific-navy">Resultados</h1>
             <p className="text-muted-foreground mt-1">
-              {filteredArticles.length} de {articles.length} artigos encontrados
+              {filteredArticles.length} de {articles.length} artigos • Projeto: {currentSearch.project_name}
             </p>
           </div>
           <div className="flex gap-3">
@@ -135,6 +122,7 @@ const Results = () => {
                   <SelectItem value="todos">Todos os status</SelectItem>
                   <SelectItem value="incluido">Incluídos</SelectItem>
                   <SelectItem value="excluido">Excluídos</SelectItem>
+                  <SelectItem value="pending">Pendentes</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -168,22 +156,24 @@ const Results = () => {
                           {article.title}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {article.authors}
+                          {article.authors || 'Autores não informados'}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          DOI: {article.doi}
-                        </div>
+                        {article.doi && (
+                          <div className="text-xs text-muted-foreground">
+                            DOI: {article.doi}
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">{article.journal}</div>
+                      <div className="text-sm">{article.journal || 'N/A'}</div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">{article.year}</div>
+                      <div className="text-sm">{article.year || 'N/A'}</div>
                     </TableCell>
                     <TableCell>
-                      <div className={`font-medium ${getScoreColor(article.score)}`}>
-                        {article.score.toFixed(2)}
+                      <div className={`font-medium ${getScoreColor(article.ml_score)}`}>
+                        {article.ml_score ? article.ml_score.toFixed(2) : 'N/A'}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -232,7 +222,7 @@ const Results = () => {
               <span className="text-primary font-bold">%</span>
             </div>
             <div className="text-2xl font-bold text-foreground">
-              {((articles.filter(a => a.status === "incluido").length / articles.length) * 100).toFixed(1)}%
+              {articles.length > 0 ? ((articles.filter(a => a.status === "incluido").length / articles.length) * 100).toFixed(1) : '0.0'}%
             </div>
             <div className="text-sm text-muted-foreground">Taxa de Inclusão</div>
           </Card>

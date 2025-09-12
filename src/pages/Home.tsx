@@ -63,7 +63,7 @@ const Home = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/dashboard">
+            <Link to="/auth">
               <Button size="lg" className="bg-gradient-primary hover:shadow-glow transition-all duration-300">
                 Começar Agora
                 <ArrowRight className="ml-2 w-5 h-5" />
