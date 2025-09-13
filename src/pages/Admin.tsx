@@ -33,14 +33,16 @@ const Admin = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    if (user && hasRole('admin')) {
+      fetchUsers();
+    }
+  }, [user, hasRole]);
+
   // Redirect if not admin
   if (!user || !hasRole('admin')) {
     return <Navigate to="/" replace />;
   }
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
 
   const fetchUsers = async () => {
     try {
