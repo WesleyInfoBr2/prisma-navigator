@@ -39,6 +39,20 @@ const Admin = () => {
     }
   }, [user, hasRole]);
 
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalSearches: 0,
+    premiumUsers: 0,
+    recentUsers: 0
+  });
+
+  useEffect(() => {
+    if (user && hasRole('admin')) {
+      fetchUsers();
+      fetchStats().then(setStats);
+    }
+  }, [user, hasRole]);
+
   // Redirect if not admin
   if (!user || !hasRole('admin')) {
     return <Navigate to="/" replace />;
@@ -46,32 +60,40 @@ const Admin = () => {
 
   const fetchUsers = async () => {
     try {
+      // First get all profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        throw profilesError;
+      }
 
-      // Get roles for each user
-      const usersWithRoles = await Promise.all(
-        profiles.map(async (profile) => {
-          const { data: roleData } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', profile.user_id)
-            .single();
+      // Then get all user roles in a single query
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
 
-          return {
-            ...profile,
-            role: roleData?.role || 'free_user'
-          };
-        })
-      );
+      if (rolesError) {
+        console.error('Error fetching roles:', rolesError);
+        throw rolesError;
+      }
 
+      // Combine profiles with roles
+      const usersWithRoles = profiles.map(profile => {
+        const userRole = roles?.find(role => role.user_id === profile.user_id);
+        return {
+          ...profile,
+          role: userRole?.role || 'free_user'
+        };
+      });
+
+      console.log('Fetched users:', usersWithRoles);
       setUsers(usersWithRoles);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error in fetchUsers:', error);
       toast({
         title: "Erro",
         description: "Erro ao carregar usuários",
@@ -79,6 +101,50 @@ const Admin = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      // Get total users count
+      const { count: totalUsers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      // Get total searches count  
+      const { count: totalSearches } = await supabase
+        .from('search_results')
+        .select('*', { count: 'exact', head: true });
+
+      // Get premium users count
+      const { count: premiumUsers } = await supabase
+        .from('user_roles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'premium_user');
+
+      // Get recent users (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { count: recentUsers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', thirtyDaysAgo.toISOString());
+
+      return {
+        totalUsers: totalUsers || 0,
+        totalSearches: totalSearches || 0,
+        premiumUsers: premiumUsers || 0,
+        recentUsers: recentUsers || 0
+      };
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      return {
+        totalUsers: 0,
+        totalSearches: 0,
+        premiumUsers: 0,
+        recentUsers: 0
+      };
     }
   };
 
@@ -133,31 +199,31 @@ const Admin = () => {
   const adminStats = [
     {
       title: "Usuários Ativos",
-      value: "127",
+      value: stats.recentUsers.toString(),
       description: "Últimos 30 dias",
       icon: Users,
-      trend: { value: 12, isPositive: true }
+      trend: { value: 0, isPositive: true }
     },
     {
       title: "Buscas Realizadas",
-      value: "1,847",
+      value: stats.totalSearches.toString(),
       description: "Total no sistema",
       icon: Database,
-      trend: { value: 8, isPositive: true }
+      trend: { value: 0, isPositive: true }
     },
     {
       title: "Usuários Premium",
-      value: "23",
+      value: stats.premiumUsers.toString(),
       description: "Contas ativas",
       icon: UserCheck,
-      trend: { value: 15, isPositive: true }
+      trend: { value: 0, isPositive: true }
     },
     {
-      title: "Sistema",
-      value: "Online",
-      description: "Todos os serviços funcionando",
+      title: "Total de Usuários",
+      value: stats.totalUsers.toString(),
+      description: "Todos os usuários",
       icon: Activity,
-      trend: { value: 99.9, isPositive: true }
+      trend: { value: 0, isPositive: true }
     }
   ];
 
