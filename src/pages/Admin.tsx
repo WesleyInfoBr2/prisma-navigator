@@ -4,6 +4,9 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Settings, 
   Users, 
@@ -11,16 +14,119 @@ import {
   Shield, 
   Activity,
   UserCheck,
-  UserX
+  UserX,
+  Edit3
 } from 'lucide-react';
+
+interface UserProfile {
+  id: string;
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  created_at: string;
+  role?: 'free_user' | 'premium_user' | 'admin';
+}
 
 const Admin = () => {
   const { user, userRole, hasRole } = useAuth();
+  const { toast } = useToast();
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Redirect if not admin
   if (!user || !hasRole('admin')) {
     return <Navigate to="/" replace />;
   }
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (profilesError) throw profilesError;
+
+      // Get roles for each user
+      const usersWithRoles = await Promise.all(
+        profiles.map(async (profile) => {
+          const { data: roleData } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', profile.user_id)
+            .single();
+
+          return {
+            ...profile,
+            role: roleData?.role || 'free_user'
+          };
+        })
+      );
+
+      setUsers(usersWithRoles);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar usuários",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateUserRole = async (userId: string, newRole: 'free_user' | 'premium_user' | 'admin') => {
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .upsert({ user_id: userId, role: newRole }, { onConflict: 'user_id' });
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: "Perfil do usuário atualizado com sucesso",
+      });
+
+      fetchUsers(); // Refresh the list
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar perfil do usuário",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const getRoleBadgeVariant = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return 'destructive';
+      case 'premium_user':
+        return 'default';
+      case 'free_user':
+      default:
+        return 'secondary';
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return 'Administrador';
+      case 'premium_user':
+        return 'Premium';
+      case 'free_user':
+      default:
+        return 'Gratuito';
+    }
+  };
 
   const adminStats = [
     {
@@ -109,50 +215,99 @@ const Admin = () => {
           })}
         </div>
 
-        {/* Management Sections */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* User Management */}
-          <Card className="p-6 bg-gradient-subtle border-border/50">
-            <div className="flex items-center mb-4">
-              <Users className="w-5 h-5 text-primary mr-2" />
-              <h3 className="text-lg font-semibold">Gerenciamento de Usuários</h3>
+        {/* User Management */}
+        <Card className="p-6 bg-gradient-subtle border-border/50">
+          <div className="flex items-center mb-4">
+            <Users className="w-5 h-5 text-primary mr-2" />
+            <h3 className="text-lg font-semibold">Gerenciamento de Usuários</h3>
+          </div>
+          
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="text-muted-foreground mt-2">Carregando usuários...</p>
             </div>
-            
+          ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between py-2 border-b border-border/50">
-                <div className="flex items-center space-x-3">
-                  <UserCheck className="w-4 h-4 text-accent" />
-                  <span className="text-sm">Usuários Gratuitos</span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="text-center p-4 bg-card rounded-lg border">
+                  <UserCheck className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                  <div className="text-2xl font-bold">{users.filter(u => u.role === 'free_user').length}</div>
+                  <div className="text-sm text-muted-foreground">Gratuitos</div>
                 </div>
-                <Badge variant="secondary">104</Badge>
+                <div className="text-center p-4 bg-card rounded-lg border">
+                  <UserCheck className="w-6 h-6 text-primary mx-auto mb-2" />
+                  <div className="text-2xl font-bold">{users.filter(u => u.role === 'premium_user').length}</div>
+                  <div className="text-sm text-muted-foreground">Premium</div>
+                </div>
+                <div className="text-center p-4 bg-card rounded-lg border">
+                  <Shield className="w-6 h-6 text-accent mx-auto mb-2" />
+                  <div className="text-2xl font-bold">{users.filter(u => u.role === 'admin').length}</div>
+                  <div className="text-sm text-muted-foreground">Administradores</div>
+                </div>
               </div>
-              
-              <div className="flex items-center justify-between py-2 border-b border-border/50">
-                <div className="flex items-center space-x-3">
-                  <UserCheck className="w-4 h-4 text-primary" />
-                  <span className="text-sm">Usuários Premium</span>
+
+              <div className="max-h-96 overflow-y-auto">
+                <div className="space-y-2">
+                  {users.map((user) => (
+                    <div key={user.id} className="flex items-center justify-between p-3 bg-card rounded-lg border hover:shadow-sm transition-shadow">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <div>
+                            <p className="font-medium">{user.full_name || 'Nome não informado'}</p>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <Badge variant={getRoleBadgeVariant(user.role || 'free_user')}>
+                          {getRoleLabel(user.role || 'free_user')}
+                        </Badge>
+                        
+                        <div className="flex space-x-1">
+                          {user.role !== 'admin' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => updateUserRole(user.user_id, 'admin')}
+                              className="h-8 px-2"
+                            >
+                              <Shield className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {user.role !== 'premium_user' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => updateUserRole(user.user_id, 'premium_user')}
+                              className="h-8 px-2"
+                            >
+                              <UserCheck className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {user.role !== 'free_user' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => updateUserRole(user.user_id, 'free_user')}
+                              className="h-8 px-2"
+                            >
+                              <UserX className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <Badge className="bg-primary/10 text-primary border-primary/20">23</Badge>
-              </div>
-              
-              <div className="flex items-center justify-between py-2">
-                <div className="flex items-center space-x-3">
-                  <UserX className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm">Usuários Inativos</span>
-                </div>
-                <Badge variant="outline">12</Badge>
               </div>
             </div>
-            
-            <div className="mt-6 space-y-2">
-              <Button variant="outline" className="w-full border-primary text-primary">
-                Ver Todos os Usuários
-              </Button>
-              <Button variant="outline" className="w-full">
-                Relatório de Atividade
-              </Button>
-            </div>
-          </Card>
+          )}
+        </Card>
+
+        {/* Management Sections */}
+        <div className="grid lg:grid-cols-1 gap-6">
 
           {/* System Configuration */}
           <Card className="p-6 bg-gradient-subtle border-border/50">
