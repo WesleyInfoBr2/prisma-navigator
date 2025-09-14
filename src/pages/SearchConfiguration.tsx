@@ -9,15 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Search, Plus, X, Database, Calendar, Filter, Mail, Key, Play, Loader2, CheckCircle } from "lucide-react";
-import { APIConnectionTest } from "@/components/APIConnectionTest";
+import { Search, Plus, X, Database, Calendar, Filter, Mail, Key, Play, Loader2, CheckCircle, Zap } from "lucide-react";
 import { useRevPrismaAPI } from "@/hooks/useRevPrismaAPI";
 import { SearchRequest } from "@/services/api";
 import { useSearch } from "@/contexts/SearchContext";
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from "@/integrations/supabase/client";
 const SearchConfiguration = () => {
   const { searchArticles, loading, currentProject, searchResults, error } = useRevPrismaAPI();
   const { saveSearchResult, fetchArticlesForSearch, setArticles } = useSearch();
+  const { profile } = useAuth();
   
   const [config, setConfig] = useState({
     projectName: "",
@@ -31,7 +32,7 @@ const SearchConfiguration = () => {
     },
     dateStart: "",
     dateEnd: "",
-    email: "",
+    email: profile?.email || "",
     filtersLanguage: [] as string[],
     filtersPubTypes: [] as string[]
   });
@@ -40,6 +41,7 @@ const SearchConfiguration = () => {
   const [excludeKeywords, setExcludeKeywords] = useState<string[]>(["animal study", "veterinary"]);
   const [newIncludeKeyword, setNewIncludeKeyword] = useState("");
   const [newExcludeKeyword, setNewExcludeKeyword] = useState("");
+  const [keywordOperator, setKeywordOperator] = useState<'AND' | 'OR'>('AND');
 
   const handleDatabaseChange = (database: string, checked: boolean) => {
     setConfig(prev => ({
@@ -90,13 +92,37 @@ const SearchConfiguration = () => {
     setExcludeKeywords(excludeKeywords.filter((_, i) => i !== index));
   };
 
+  const generateQueriesFromKeywords = () => {
+    if (includeKeywords.length === 0) return;
+
+    const operator = keywordOperator;
+    const includeTerms = includeKeywords.map(k => `"${k}"`).join(` ${operator} `);
+    const excludeTerms = excludeKeywords.map(k => `NOT "${k}"`).join(' ');
+    const baseQuery = excludeTerms ? `${includeTerms} ${excludeTerms}` : includeTerms;
+
+    // Generate queries for each database
+    const newQueries = {
+      pubmed: `(${includeTerms})[Title/Abstract]${excludeTerms ? ` AND ${excludeTerms}` : ''}`,
+      openalex: baseQuery,
+      crossref: baseQuery,
+      scopus: `TITLE-ABS-KEY(${baseQuery})`,
+      wos: `TS=(${baseQuery})`
+    };
+
+    setConfig(prev => ({
+      ...prev,
+      queries: newQueries
+    }));
+  };
+
   const handleExecuteSearch = async () => {
     if (!config.projectName || config.databases.length === 0) {
       return;
     }
 
-    // Validate email for PubMed
-    if (config.databases.includes("pubmed") && (!config.email || !config.email.includes("@"))) {
+    // Validate email for PubMed - use profile email
+    const userEmail = profile?.email || config.email;
+    if (config.databases.includes("pubmed") && (!userEmail || !userEmail.includes("@"))) {
       alert("Email válido é obrigatório para buscar no PubMed");
       return;
     }
@@ -130,7 +156,7 @@ const SearchConfiguration = () => {
       date_end: config.dateEnd || undefined,
       filters_language: config.filtersLanguage,
       filters_pub_types_exclude: config.filtersPubTypes,
-      email: config.email || undefined
+      email: userEmail || undefined
     };
 
     const result = await searchArticles(searchRequest);
@@ -217,8 +243,6 @@ const SearchConfiguration = () => {
           </p>
         </div>
 
-        {/* API Connection Test */}
-        <APIConnectionTest />
 
         {/* Search Results Alert */}
         {searchResults && (
@@ -292,15 +316,18 @@ const SearchConfiguration = () => {
                     <div>
                       <Label htmlFor="email" className="flex items-center gap-2">
                         <Mail className="h-4 w-4" />
-                        E-mail (obrigatório para PubMed) *
+                        E-mail (do seu cadastro)
                       </Label>
                       <Input
                         id="email"
                         type="email"
-                        placeholder="seu@email.com"
-                        value={config.email}
-                        onChange={(e) => setConfig(prev => ({ ...prev, email: e.target.value }))}
+                        value={profile?.email || ""}
+                        disabled
+                        className="bg-muted"
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Email do seu perfil será usado automaticamente para PubMed
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -634,7 +661,41 @@ const SearchConfiguration = () => {
                   </div>
                 </div>
 
-                {/* Exclude Keywords */}
+                {/* Keyword Operator */}
+                <div>
+                  <Label className="text-foreground font-medium mb-2 block">Operador entre palavras-chave</Label>
+                  <Select 
+                    value={keywordOperator} 
+                    onValueChange={(value: 'AND' | 'OR') => setKeywordOperator(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AND">E (AND) - Todas as palavras</SelectItem>
+                      <SelectItem value="OR">OU (OR) - Qualquer palavra</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Define como combinar as palavras-chave de inclusão
+                  </p>
+                </div>
+
+                {/* Auto-generate queries button */}
+                <div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={generateQueriesFromKeywords}
+                    disabled={includeKeywords.length === 0}
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    Gerar Queries Automaticamente
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Cria queries para cada base usando suas palavras-chave
+                  </p>
+                </div>
                 <div>
                   <Label className="text-destructive font-medium mb-2 block">Exclusão</Label>
                   <div className="flex gap-2">

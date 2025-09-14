@@ -407,10 +407,18 @@ const Admin = () => {
             </div>
             
             <div className="mt-6 space-y-2">
-              <Button variant="outline" className="w-full border-accent text-accent">
+              <Button 
+                variant="outline" 
+                className="w-full border-accent text-accent"
+                onClick={() => alert('Funcionalidade em desenvolvimento')}
+              >
                 Configurar APIs
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => alert('Funcionalidade em desenvolvimento')}
+              >
                 Logs do Sistema
               </Button>
             </div>
