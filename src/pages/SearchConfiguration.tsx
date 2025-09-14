@@ -99,11 +99,21 @@ const SearchConfiguration = () => {
       return;
     }
 
-    // Validate queries
-    for (const db of config.databases) {
-      const query = config.queries[db as keyof typeof config.queries];
-      if (!query || !query.trim()) {
-        alert(`Query para ${db} é obrigatória`);
+    // Relaxed validation - only require query for PubMed or if no PubMed is selected
+    if (config.databases.includes("pubmed")) {
+      if (!config.queries.pubmed || !config.queries.pubmed.trim()) {
+        alert("Query para PubMed é obrigatória");
+        return;
+      }
+    } else {
+      // If no PubMed, require at least one query
+      const hasQuery = config.databases.some(db => {
+        const query = config.queries[db as keyof typeof config.queries];
+        return query && query.trim();
+      });
+      
+      if (!hasQuery) {
+        alert("Pelo menos uma query é obrigatória");
         return;
       }
     }
@@ -147,7 +157,13 @@ const SearchConfiguration = () => {
             <CheckCircle className="h-4 w-4" />
             <AlertDescription>
               <strong>Busca concluída!</strong> Encontrados {searchResults.total_records} artigos.
-              Projeto ID: {searchResults.project_id}
+              <br />
+              <small className="text-muted-foreground">
+                Projeto ID: {searchResults.project_id}
+                {searchResults.databases_used && (
+                  <span> | Bases utilizadas: {searchResults.databases_used.join(', ')}</span>
+                )}
+              </small>
             </AlertDescription>
           </Alert>
         )}
@@ -376,7 +392,9 @@ const SearchConfiguration = () => {
                           }))}
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          Exemplo simples: artificial intelligence[Title/Abstract] AND education[Title/Abstract]
+                          <strong>Exemplo:</strong> artificial intelligence[Title/Abstract] AND education[Title/Abstract]
+                          <br />
+                          <strong>Dica:</strong> Se você deixar outras queries vazias, elas serão geradas automaticamente a partir desta query do PubMed.
                         </p>
                       </div>
                     )}

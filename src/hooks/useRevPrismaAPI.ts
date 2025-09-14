@@ -104,20 +104,134 @@ export const useRevPrismaAPI = () => {
     );
   }, [handleAPICall]);
 
-  // Search articles
-  const searchArticles = useCallback((request: SearchRequest) => {
-    return handleAPICall(
-      () => revPrismaAPI.searchArticles(request),
-      (data) => {
-        setProjectState(prev => ({
-          ...prev,
-          currentProject: data.project_id,
-          searchResults: data,
-        }));
-      },
-      `Busca concluída: ${request.project_name}`
-    );
-  }, [handleAPICall]);
+  // Helper function to normalize PubMed query for other databases
+  const normalizeQuery = useCallback((pubmedQuery: string): string => {
+    return pubmedQuery
+      // Remove PubMed field tags like [Title/Abstract], [Title], [MeSH Terms], etc.
+      .replace(/\[[\w\/\s]+\]/g, '')
+      // Clean up extra spaces and normalize boolean operators
+      .replace(/\s+/g, ' ')
+      .trim();
+  }, []);
+
+  // Helper function to auto-generate queries for other databases
+  const generateQueriesFromPubMed = useCallback((pubmedQuery: string, databases: string[]) => {
+    const normalizedQuery = normalizeQuery(pubmedQuery);
+    const queries: Record<string, string> = {};
+    
+    databases.forEach(db => {
+      if (db === 'pubmed') {
+        queries[db] = pubmedQuery;
+      } else {
+        // Use normalized query for other databases
+        queries[db] = normalizedQuery;
+      }
+    });
+    
+    return queries;
+  }, [normalizeQuery]);
+
+  // Search articles with automatic fallback and query normalization
+  const searchArticles = useCallback(async (request: SearchRequest) => {
+    const originalRequest = { ...request };
+    
+    try {
+      setLoading(true);
+      
+      // First, try to normalize queries if user hasn't filled them
+      const updatedRequest = { ...request };
+      
+      // If PubMed is selected and has a query, auto-generate others if they're empty
+      if (request.databases.includes('pubmed') && request.queries.pubmed) {
+        const generatedQueries = generateQueriesFromPubMed(request.queries.pubmed, request.databases);
+        
+        // Only replace empty queries
+        Object.keys(generatedQueries).forEach(db => {
+          if (!request.queries[db] || request.queries[db].trim() === '') {
+            updatedRequest.queries[db] = generatedQueries[db];
+          }
+        });
+      }
+      
+      console.log('Executando busca com queries:', updatedRequest.queries);
+      
+      const result = await revPrismaAPI.searchArticles(updatedRequest);
+      
+      setProjectState(prev => ({
+        ...prev,
+        currentProject: result.project_id,
+        searchResults: result,
+      }));
+      
+      setData(result);
+      
+      toast({
+        title: "Sucesso",
+        description: `Busca concluída: ${request.project_name}. Encontrados ${result.total_records || 0} artigos.`,
+      });
+      
+      return result;
+      
+    } catch (error) {
+      console.error('Erro na busca inicial:', error);
+      
+      // Check if error is related to PubMed XML parsing
+      const isXMLError = error instanceof APIError && 
+        (error.message.includes('XML') || error.message.includes('not well-formed'));
+      
+      // Try fallback without PubMed if it was included and caused XML error
+      if (isXMLError && originalRequest.databases.includes('pubmed') && originalRequest.databases.length > 1) {
+        console.log('Tentando busca sem PubMed devido a erro XML...');
+        
+        try {
+          const fallbackRequest = {
+            ...originalRequest,
+            databases: originalRequest.databases.filter(db => db !== 'pubmed'),
+            queries: { ...originalRequest.queries }
+          };
+          
+          // Remove PubMed query
+          delete fallbackRequest.queries.pubmed;
+          
+          // Generate normalized queries for remaining databases if needed
+          if (originalRequest.queries.pubmed) {
+            const normalizedQueries = generateQueriesFromPubMed(originalRequest.queries.pubmed, fallbackRequest.databases);
+            Object.keys(normalizedQueries).forEach(db => {
+              if (!fallbackRequest.queries[db] || fallbackRequest.queries[db].trim() === '') {
+                fallbackRequest.queries[db] = normalizedQueries[db];
+              }
+            });
+          }
+          
+          console.log('Executando busca de fallback:', fallbackRequest);
+          
+          const fallbackResult = await revPrismaAPI.searchArticles(fallbackRequest);
+          
+          setProjectState(prev => ({
+            ...prev,
+            currentProject: fallbackResult.project_id,
+            searchResults: fallbackResult,
+          }));
+          
+          setData(fallbackResult);
+          
+          toast({
+            title: "Busca Concluída com Fallback",
+            description: `PubMed falhou (erro XML), mas encontramos ${fallbackResult.total_records || 0} artigos nas outras bases.`,
+            variant: "default",
+          });
+          
+          return fallbackResult;
+          
+        } catch (fallbackError) {
+          console.error('Erro na busca de fallback:', fallbackError);
+          throw fallbackError;
+        }
+      } else {
+        throw error;
+      }
+    }
+  }, [setLoading, setData, toast, generateQueriesFromPubMed]);
 
   // Deduplicate records
   const deduplicateRecords = useCallback((projectId: string, fuzzyThreshold: number = 95) => {
