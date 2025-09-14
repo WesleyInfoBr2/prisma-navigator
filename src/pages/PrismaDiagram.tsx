@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearch } from "@/contexts/SearchContext";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { 
   Download, 
   FileImage, 
@@ -38,9 +38,9 @@ const PrismaDiagram = () => {
               <p className="text-muted-foreground mb-4">
                 Realize uma busca primeiro para gerar o diagrama PRISMA.
               </p>
-              <Button asChild className="bg-gradient-primary">
-                <a href="/search">Fazer Nova Busca</a>
-              </Button>
+<Link to="/search">
+  <Button className="bg-gradient-primary">Fazer Nova Busca</Button>
+</Link>
             </Card>
           </div>
         </div>

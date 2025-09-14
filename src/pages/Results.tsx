@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearch } from "@/contexts/SearchContext";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { 
   Download, 
   Search, 
@@ -42,9 +42,9 @@ const Results = () => {
               <p className="text-muted-foreground mb-4">
                 Realize uma busca primeiro para ver os resultados aqui.
               </p>
-              <Button asChild className="bg-gradient-primary">
-                <a href="/search">Fazer Nova Busca</a>
-              </Button>
+<Link to="/search">
+  <Button className="bg-gradient-primary">Fazer Nova Busca</Button>
+</Link>
             </Card>
           </div>
         </div>

@@ -13,9 +13,11 @@ import { Search, Plus, X, Database, Calendar, Filter, Mail, Key, Play, Loader2, 
 import { APIConnectionTest } from "@/components/APIConnectionTest";
 import { useRevPrismaAPI } from "@/hooks/useRevPrismaAPI";
 import { SearchRequest } from "@/services/api";
-
+import { useSearch } from "@/contexts/SearchContext";
+import { supabase } from "@/integrations/supabase/client";
 const SearchConfiguration = () => {
   const { searchArticles, loading, currentProject, searchResults, error } = useRevPrismaAPI();
+  const { saveSearchResult, fetchArticlesForSearch, setArticles } = useSearch();
   
   const [config, setConfig] = useState({
     projectName: "",
@@ -131,7 +133,74 @@ const SearchConfiguration = () => {
       email: config.email || undefined
     };
 
-    await searchArticles(searchRequest);
+    const result = await searchArticles(searchRequest);
+
+    // Persist search and articles to Supabase so other pages reflect this search
+    if (result) {
+      try {
+        const searchId = await saveSearchResult({
+          project_name: config.projectName,
+          databases_used: config.databases,
+          queries: searchRequest.queries,
+          total_results: result.total_records,
+          results_by_database: (result as any).records_by_database || {},
+          search_date: new Date().toISOString(),
+          status: 'completed',
+        });
+
+        if (searchId) {
+          const records = Array.isArray((result as any).records) ? (result as any).records : [];
+
+          const mapRecord = (rec: any) => {
+            const title = rec.title || rec.metadata?.title || rec.primary_title || 'Untitled';
+            const authors = rec.authors 
+              ? (Array.isArray(rec.authors) ? rec.authors.join(', ') : String(rec.authors))
+              : (rec.metadata?.authors ? (Array.isArray(rec.metadata.authors) ? rec.metadata.authors.join(', ') : String(rec.metadata.authors)) : null);
+            const journal = rec.journal || rec.venue || rec.container_title || rec.source || null;
+            const year = rec.year || rec.published_year || null;
+            const doi = rec.doi || rec.DOI || null;
+            const abstract = rec.abstract || rec.abstract_text || null;
+            const ml_score = rec.ml_score ?? null;
+            const source = rec.source_database || rec.source || rec.database || 'unknown';
+            return {
+              search_id: searchId,
+              title,
+              authors,
+              journal,
+              year,
+              doi,
+              abstract,
+              ml_score,
+              status: 'pending',
+              source_database: source
+            };
+          };
+
+          if (records.length > 0) {
+            const mapped = records.map(mapRecord);
+
+            // Optimistic update so other páginas vejam imediatamente
+            setArticles(mapped as any);
+
+            // Batch insert to Supabase
+            const batchSize = 500;
+            for (let i = 0; i < mapped.length; i += batchSize) {
+              const batch = mapped.slice(i, i + batchSize);
+              const { error } = await supabase.from('articles').insert(batch);
+              if (error) {
+                console.error('Erro ao salvar artigos no Supabase:', error);
+                break;
+              }
+            }
+          }
+
+          // Ensure context is synced with DB
+          await fetchArticlesForSearch(searchId);
+        }
+      } catch (e) {
+        console.error('Falha ao persistir busca/artigos no Supabase:', e);
+      }
+    }
   };
 
   const canExecuteSearch = config.projectName && config.databases.length > 0 && 
